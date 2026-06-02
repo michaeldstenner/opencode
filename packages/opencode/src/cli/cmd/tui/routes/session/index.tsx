@@ -84,6 +84,7 @@ import { UI } from "@/cli/ui.ts"
 import { useTuiConfig } from "../../context/tui-config"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
+import { useLayout, type LayoutConfig } from "../../context/layout"
 import { collapseToolOutput } from "../../util/collapse-tool-output"
 import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
@@ -172,6 +173,7 @@ const context = createContext<{
   providers: () => ReadonlyMap<string, Provider>
   sync: ReturnType<typeof useSync>
   tui: ReturnType<typeof useTuiConfig>
+  layout: () => LayoutConfig
 }>()
 
 function use() {
@@ -187,6 +189,8 @@ export function Session() {
   const event = useEvent()
   const project = useProject()
   const tuiConfig = useTuiConfig()
+  const layoutCtx = useLayout()
+  const layout = createMemo(() => layoutCtx.current)
   const kv = useKV()
   const { theme } = useTheme()
   const promptRef = usePromptRef()
@@ -236,6 +240,7 @@ export function Session() {
 
   const wide = createMemo(() => dimensions().width > 120)
   const sidebarVisible = createMemo(() => {
+    if (layout().forceSidebarHidden) return false
     if (session()?.parentID) return false
     if (sidebarOpen()) return true
     if (sidebar() === "auto" && wide()) return true
@@ -1132,10 +1137,18 @@ export function Session() {
           providers,
           sync,
           tui: tuiConfig,
+          layout,
         }}
       >
         <box flexDirection="row" flexGrow={1} minHeight={0}>
-          <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
+          <box
+            flexGrow={1}
+            minHeight={0}
+            paddingBottom={layout().containerPaddingBottom}
+            paddingLeft={layout().containerPaddingLeft}
+            paddingRight={layout().containerPaddingRight}
+            gap={layout().containerGap}
+          >
             <Show when={session()}>
               <scrollbox
                 ref={(r) => (scroll = r)}
@@ -1361,7 +1374,7 @@ function UserMessage(props: {
           border={["left"]}
           borderColor={color()}
           customBorderChars={SplitBorder.customBorderChars}
-          marginTop={props.index === 0 ? 0 : 1}
+          marginTop={props.index === 0 ? 0 : ctx.layout().messageSeparation}
         >
           <box
             onMouseOver={() => {
@@ -1371,9 +1384,9 @@ function UserMessage(props: {
               setHover(false)
             }}
             onMouseUp={props.onMouseUp}
-            paddingTop={1}
-            paddingBottom={1}
-            paddingLeft={2}
+            paddingTop={ctx.layout().userMessagePaddingTop}
+            paddingBottom={ctx.layout().userMessagePaddingBottom}
+            paddingLeft={ctx.layout().messagePaddingLeft}
             backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             flexShrink={0}
           >
@@ -1479,10 +1492,10 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <box
           border={["left"]}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          marginTop={1}
+          paddingTop={ctx.layout().assistantMessagePaddingTop}
+          paddingBottom={ctx.layout().assistantMessagePaddingBottom}
+          paddingLeft={ctx.layout().messagePaddingLeft}
+          marginTop={ctx.layout().messageSeparation}
           backgroundColor={theme.backgroundPanel}
           customBorderChars={SplitBorder.customBorderChars}
           borderColor={theme.error}
@@ -1634,7 +1647,14 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   const { theme, syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
-      <box id={"text-" + props.part.id} paddingLeft={3} marginTop={1} flexShrink={0}>
+      <box
+        id={"text-" + props.part.id}
+        paddingLeft={ctx.layout().textIndent}
+        paddingTop={ctx.layout().assistantMessagePaddingTop}
+        paddingBottom={ctx.layout().assistantMessagePaddingBottom}
+        marginTop={ctx.layout().toolMarginTop}
+        flexShrink={0}
+      >
         <markdown
           syntaxStyle={syntax()}
           streaming={true}
@@ -1966,6 +1986,7 @@ function BlockTool(props: {
   spinner?: boolean
 }) {
   const { theme } = useTheme()
+  const ctx = use()
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
@@ -1973,10 +1994,10 @@ function BlockTool(props: {
     <box
       id={props.part ? "tool-block-" + props.part.id : undefined}
       border={["left"]}
-      paddingTop={1}
-      paddingBottom={1}
-      paddingLeft={2}
-      marginTop={1}
+      paddingTop={ctx.layout().assistantMessagePaddingTop}
+      paddingBottom={ctx.layout().assistantMessagePaddingBottom}
+      paddingLeft={ctx.layout().toolIndent}
+      marginTop={ctx.layout().toolMarginTop}
       gap={1}
       backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
       customBorderChars={SplitBorder.customBorderChars}

@@ -63,6 +63,7 @@ import { Flag } from "@opencode-ai/core/flag/flag"
 import { type WorkspaceStatus } from "../workspace-label"
 import { OPENCODE_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useOpencodeKeymap } from "../../keymap"
 import { useTuiConfig } from "../../context/tui-config"
+import { useLayout } from "@tui/context/layout"
 
 export type PromptProps = {
   sessionID?: string
@@ -147,6 +148,7 @@ export function Prompt(props: PromptProps) {
   const project = useProject()
   const sync = useSync()
   const tuiConfig = useTuiConfig()
+  const layout = useLayout()
   const dialog = useDialog()
   const toast = useToast()
   const status = createMemo(() => sync.data.session_status?.[props.sessionID ?? ""] ?? { type: "idle" })
@@ -1490,7 +1492,8 @@ export function Prompt(props: PromptProps) {
           <box
             paddingLeft={2}
             paddingRight={2}
-            paddingTop={1}
+            paddingTop={layout.current.inputBoxPaddingTop}
+            paddingBottom={layout.current.inputBoxPaddingBottom}
             flexShrink={0}
             backgroundColor={theme.backgroundElement}
             flexGrow={1}
@@ -1569,72 +1572,82 @@ export function Prompt(props: PromptProps) {
               cursorColor={props.disabled ? theme.backgroundElement : theme.text}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
-              <box flexDirection="row" gap={1}>
-                <Show when={local.agent.current()} fallback={<box height={1} />}>
-                  {(agent) => (
-                    <>
-                      <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
-                      </text>
-                      <Show when={store.mode === "normal"}>
-                        <box flexDirection="row" gap={1}>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
-                          <text
-                            flexShrink={0}
-                            fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
-                          >
-                            {local.model.parsed().model}
-                          </text>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>
-                          <Show when={showVariant()}>
-                            <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>·</text>
-                            <text>
-                              <span style={{ fg: fadeColor(theme.warning, variantMetaAlpha()), bold: true }}>
-                                {local.model.variant.current()}
-                              </span>
+            <Show when={layout.current.showInputAgentInfo}>
+              <box
+                flexDirection="row"
+                flexShrink={0}
+                paddingTop={layout.current.inputAgentInfoPaddingTop}
+                gap={1}
+                justifyContent="space-between"
+              >
+                <box flexDirection="row" gap={1}>
+                  <Show when={local.agent.current()} fallback={<box height={1} />}>
+                    {(agent) => (
+                      <>
+                        <text fg={fadeColor(highlight(), agentMetaAlpha())}>
+                          {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
+                        </text>
+                        <Show when={store.mode === "normal"}>
+                          <box flexDirection="row" gap={1}>
+                            <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
+                            <text
+                              flexShrink={0}
+                              fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
+                            >
+                              {local.model.parsed().model}
                             </text>
-                          </Show>
-                        </box>
-                      </Show>
-                    </>
-                  )}
+                            <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>
+                            <Show when={showVariant()}>
+                              <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>·</text>
+                              <text>
+                                <span style={{ fg: fadeColor(theme.warning, variantMetaAlpha()), bold: true }}>
+                                  {local.model.variant.current()}
+                                </span>
+                              </text>
+                            </Show>
+                          </box>
+                        </Show>
+                      </>
+                    )}
+                  </Show>
+                </box>
+                <Show when={hasRightContent()}>
+                  <box flexDirection="row" gap={1} alignItems="center">
+                    {props.right}
+                  </box>
                 </Show>
               </box>
-              <Show when={hasRightContent()}>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  {props.right}
-                </box>
-              </Show>
-            </box>
+            </Show>
           </box>
         </box>
-        <box
-          height={1}
-          border={["left"]}
-          borderColor={borderHighlight()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
-          }}
-        >
+        <Show when={layout.current.showInputBorder}>
           <box
             height={1}
-            border={["bottom"]}
-            borderColor={theme.backgroundElement}
-            customBorderChars={
-              theme.backgroundElement.a !== 0
-                ? {
-                    ...EmptyBorder,
-                    horizontal: "▀",
-                  }
-                : {
-                    ...EmptyBorder,
-                    horizontal: " ",
-                  }
-            }
-          />
-        </box>
+            border={["left"]}
+            borderColor={borderHighlight()}
+            customBorderChars={{
+              ...EmptyBorder,
+              vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
+            }}
+          >
+            <box
+              height={1}
+              border={["bottom"]}
+              borderColor={theme.backgroundElement}
+              customBorderChars={
+                theme.backgroundElement.a !== 0
+                  ? {
+                      ...EmptyBorder,
+                      horizontal: "▀",
+                    }
+                  : {
+                      ...EmptyBorder,
+                      horizontal: " ",
+                    }
+              }
+            />
+          </box>
+        </Show>
         <box width="100%" flexDirection="row" justifyContent="space-between">
           <Switch>
             <Match when={status().type !== "idle"}>
@@ -1752,7 +1765,21 @@ export function Prompt(props: PromptProps) {
                 </box>
               )}
             </Match>
-            <Match when={true}>{props.hint ?? <text />}</Match>
+            <Match when={true}>
+              {layout.current.showInputAgentInfo ? (
+                (props.hint ?? <text />)
+              ) : (
+                <Show when={local.agent.current()}>
+                  {(agent) => (
+                    <box flexDirection="row" gap={1}>
+                      <text fg={local.agent.color(agent().name)}>{Locale.titlecase(agent().name)}</text>
+                      <text fg={theme.text}>{local.model.parsed().model}</text>
+                      <text fg={theme.textMuted}>{local.model.parsed().provider}</text>
+                    </box>
+                  )}
+                </Show>
+              )}
+            </Match>
           </Switch>
           <Show when={status().type !== "retry"}>
             <box gap={2} flexDirection="row">

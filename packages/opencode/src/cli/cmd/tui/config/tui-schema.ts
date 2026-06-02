@@ -85,4 +85,7 @@ export const TuiInfo = Schema.Struct({
   scroll_acceleration: Schema.optional(ScrollAcceleration),
   diff_style: Schema.optional(DiffStyle),
   mouse: Schema.optional(Schema.Boolean).annotate({ description: "Enable or disable mouse capture (default: true)" }),
+  layout: Schema.optional(Schema.String).annotate({
+    description: "Layout mode (built-in: default, dense; or custom layouts from ~/.config/opencode/layout/)",
+  }),
 })
